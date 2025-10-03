@@ -1,0 +1,44 @@
+name: Project Automation
+
+on:
+  issues:
+    types: [opened, labeled, assigned, closed, reopened]
+  pull_request:
+    types: [opened, converted_to_draft, ready_for_review, closed]
+
+jobs:
+  auto-add-to-project:
+    name: Auto-add to project
+    runs-on: ubuntu-latest
+    if: github.event.action == 'opened'
+    steps:
+      - name: Add issue/PR to project
+        uses: actions/add-to-project@v0.5.0
+        with:
+          project-url: https://github.com/users/dttb-capy/projects/1
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  auto-move-in-progress:
+    name: Move to In Progress
+    runs-on: ubuntu-latest
+    if: github.event.action == 'assigned' || github.event.pull_request.draft == false
+    steps:
+      - name: Move to In Progress
+        uses: actions/add-to-project@v0.5.0
+        with:
+          project-url: https://github.com/users/dttb-capy/projects/1
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Note: Moving to specific column requires GraphQL API
+          # This will add to project; manual column assignment needed
+
+  auto-move-done:
+    name: Move to Done
+    runs-on: ubuntu-latest
+    if: github.event.action == 'closed' && (github.event.issue != null || github.event.pull_request.merged == true)
+    steps:
+      - name: Move to Done
+        uses: actions/add-to-project@v0.5.0
+        with:
+          project-url: https://github.com/users/dttb-capy/projects/1
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Note: Moving to Done column requires GraphQL API
