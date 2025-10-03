@@ -1,0 +1,95 @@
+name: Performance Issue
+description: Report performance problems or suggest optimizations
+title: "[Performance]: "
+labels: ["performance"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Help us make Newsauto faster!
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component has performance issues?
+      options:
+        - Content Fetching
+        - LLM Processing
+        - Database Queries
+        - Newsletter Generation
+        - Email Delivery
+        - API Endpoints
+        - Frontend/UI
+        - Overall System
+    validations:
+      required: true
+
+  - type: textarea
+    id: issue
+    attributes:
+      label: Performance Issue
+      description: Describe the performance problem
+      placeholder: The system takes too long to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: metrics
+    attributes:
+      label: Current Metrics
+      description: What are the current performance metrics?
+      placeholder: |
+        - Operation: Newsletter generation
+        - Current time: 120 seconds
+        - Target time: < 30 seconds
+        - Articles processed: 50
+    validations:
+      required: true
+
+  - type: textarea
+    id: profiling
+    attributes:
+      label: Profiling Data
+      description: Include any profiling data or measurements
+      render: shell
+      placeholder: |
+        Function calls breakdown:
+        - fetch_content: 60s
+        - llm_summarize: 45s
+        - render_template: 15s
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Optimization Suggestion
+      description: Do you have ideas for how to improve performance?
+      placeholder: Could implement caching for...
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Hardware and software environment
+      placeholder: |
+        - GPU: RTX 4070 (12GB)
+        - RAM: 32GB
+        - Storage: NVMe SSD
+        - Articles in DB: 10,000
+    validations:
+      required: true
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Impact
+      description: How does this affect usability?
+      options:
+        - Critical (system unusable)
+        - High (significantly slows workflow)
+        - Medium (noticeable but tolerable)
+        - Low (minor inconvenience)
+    validations:
+      required: true

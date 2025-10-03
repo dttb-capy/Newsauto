@@ -1,0 +1,74 @@
+name: Documentation Update
+description: Suggest improvements to documentation
+title: "[Docs]: "
+labels: ["documentation"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Help us improve our documentation!
+
+  - type: dropdown
+    id: doc-type
+    attributes:
+      label: Documentation Type
+      description: What kind of documentation needs updating?
+      options:
+        - README
+        - API Documentation
+        - Architecture Guide
+        - Setup/Installation Guide
+        - User Guide
+        - Developer Guide
+        - Code Comments
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: location
+    attributes:
+      label: Location
+      description: Where is the documentation located?
+      placeholder: docs/technical/api-reference.md or README.md section
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: Issue Type
+      description: What's the problem?
+      options:
+        - Missing information
+        - Incorrect information
+        - Outdated information
+        - Unclear/confusing
+        - Typo or grammar
+        - Missing examples
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Current Documentation
+      description: What does the current documentation say (if it exists)?
+      placeholder: Currently, the docs state...
+
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed Changes
+      description: What should the documentation say instead?
+      placeholder: The documentation should explain...
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other relevant information
+      placeholder: This confusion arose when...
