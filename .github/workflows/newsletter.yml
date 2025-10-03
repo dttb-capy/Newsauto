@@ -1,0 +1,327 @@
+name: Automated Newsletter Generation
+
+on:
+  schedule:
+    # Run daily at 6 AM UTC (customize based on your audience timezone)
+    - cron: '0 6 * * *'
+    # Run weekly on Mondays at 8 AM UTC
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+    inputs:
+      newsletter_id:
+        description: 'Newsletter ID to generate (leave empty for all)'
+        required: false
+        type: string
+      dry_run:
+        description: 'Dry run (generate but do not send)'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  TZ: 'UTC'
+
+jobs:
+  check-schedule:
+    name: Check Newsletter Schedule
+    runs-on: ubuntu-latest
+    outputs:
+      newsletters: ${{ steps.check.outputs.newsletters }}
+      should_run: ${{ steps.check.outputs.should_run }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Check which newsletters should run
+      id: check
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      run: |
+        python -c "
+        from newsauto.core.database import SessionLocal
+        from newsauto.models.newsletter import Newsletter
+        from datetime import datetime
+        import json
+
+        db = SessionLocal()
+        now = datetime.utcnow()
+        hour = now.hour
+        day = now.weekday()
+
+        newsletters_to_run = []
+
+        # Check for specific newsletter ID from workflow input
+        newsletter_id = '${{ github.event.inputs.newsletter_id }}'
+
+        if newsletter_id:
+            newsletter = db.query(Newsletter).filter(Newsletter.id == int(newsletter_id)).first()
+            if newsletter and newsletter.status == 'active':
+                newsletters_to_run.append({
+                    'id': newsletter.id,
+                    'name': newsletter.name,
+                    'frequency': newsletter.frequency
+                })
+        else:
+            # Check all active newsletters
+            newsletters = db.query(Newsletter).filter(Newsletter.status == 'active').all()
+
+            for nl in newsletters:
+                frequency = nl.settings.get('frequency', 'weekly')
+                send_time = nl.settings.get('send_time', '08:00')
+                send_hour = int(send_time.split(':')[0])
+
+                should_send = False
+
+                if frequency == 'daily' and hour == send_hour:
+                    should_send = True
+                elif frequency == 'weekly' and day == 0 and hour == send_hour:  # Monday
+                    should_send = True
+                elif frequency == 'monthly' and now.day == 1 and hour == send_hour:  # First of month
+                    should_send = True
+
+                if should_send:
+                    newsletters_to_run.append({
+                        'id': nl.id,
+                        'name': nl.name,
+                        'frequency': frequency
+                    })
+
+        print(f'newsletters={json.dumps(newsletters_to_run)}')
+        print(f'should_run={len(newsletters_to_run) > 0}')
+        "
+        echo "newsletters=$newsletters" >> $GITHUB_OUTPUT
+        echo "should_run=$should_run" >> $GITHUB_OUTPUT
+
+  generate-newsletters:
+    name: Generate Newsletter Content
+    runs-on: ubuntu-latest
+    needs: check-schedule
+    if: needs.check-schedule.outputs.should_run == 'true'
+
+    strategy:
+      matrix:
+        newsletter: ${{ fromJson(needs.check-schedule.outputs.newsletters) }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Install and start Ollama
+      run: |
+        curl -fsSL https://ollama.ai/install.sh | sh
+        ollama serve &
+        sleep 10
+
+        # Pull required models
+        ollama pull mistral:7b-instruct || true
+        ollama pull deepseek-r1:1.5b || true
+      continue-on-error: true
+
+    - name: Fetch fresh content
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        OLLAMA_HOST: http://localhost:11434
+      run: |
+        echo "📡 Fetching content for newsletter: ${{ matrix.newsletter.name }}"
+        python -m newsauto.cli fetch-content --all-sources
+
+    - name: Generate newsletter edition
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        OLLAMA_HOST: http://localhost:11434
+      run: |
+        echo "📝 Generating newsletter: ${{ matrix.newsletter.name }}"
+
+        python -c "
+        from newsauto.core.database import SessionLocal
+        from newsauto.models.newsletter import Newsletter
+        from newsauto.generators.newsletter_generator import NewsletterGenerator
+
+        db = SessionLocal()
+        newsletter = db.query(Newsletter).filter(Newsletter.id == ${{ matrix.newsletter.id }}).first()
+
+        if newsletter:
+            generator = NewsletterGenerator(db)
+            edition = generator.generate_edition(
+                newsletter,
+                test_mode=${{ github.event.inputs.dry_run == 'true' }},
+                max_articles=10
+            )
+            print(f'✅ Generated edition {edition.id} for {newsletter.name}')
+            print(f'   Subject: {edition.subject}')
+            print(f'   Articles: {edition.content.get(\"total_articles\", 0)}')
+        else:
+            print('❌ Newsletter not found')
+            exit(1)
+        "
+
+    - name: Upload newsletter preview
+      if: github.event.inputs.dry_run == 'true'
+      run: |
+        python -m newsauto.cli preview-newsletter \
+          --newsletter-id ${{ matrix.newsletter.id }} \
+          --output preview_${{ matrix.newsletter.id }}.html
+
+        echo "📄 Preview saved to preview_${{ matrix.newsletter.id }}.html"
+
+    - name: Upload preview artifact
+      if: github.event.inputs.dry_run == 'true'
+      uses: actions/upload-artifact@v3
+      with:
+        name: newsletter-preview-${{ matrix.newsletter.id }}
+        path: preview_${{ matrix.newsletter.id }}.html
+
+  send-newsletters:
+    name: Send Newsletters
+    runs-on: ubuntu-latest
+    needs: generate-newsletters
+    if: github.event.inputs.dry_run != 'true'
+
+    strategy:
+      matrix:
+        newsletter: ${{ fromJson(needs.check-schedule.outputs.newsletters) }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Send newsletter to subscribers
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        SMTP_HOST: ${{ secrets.SMTP_HOST }}
+        SMTP_PORT: ${{ secrets.SMTP_PORT }}
+        SMTP_USER: ${{ secrets.SMTP_USER }}
+        SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+        SMTP_FROM: ${{ secrets.SMTP_FROM }}
+      run: |
+        echo "📧 Sending newsletter: ${{ matrix.newsletter.name }}"
+
+        python -c "
+        import asyncio
+        from newsauto.core.database import SessionLocal
+        from newsauto.models.newsletter import Newsletter
+        from newsauto.models.edition import Edition, EditionStatus
+        from newsauto.email.batch_sender import BatchEmailSender
+        from newsauto.email.email_sender import SMTPConfig
+        from newsauto.generators.newsletter_generator import NewsletterGenerator
+
+        async def send():
+            db = SessionLocal()
+
+            # Get latest edition
+            edition = db.query(Edition).filter(
+                Edition.newsletter_id == ${{ matrix.newsletter.id }},
+                Edition.status == EditionStatus.DRAFT
+            ).order_by(Edition.created_at.desc()).first()
+
+            if not edition:
+                print('❌ No draft edition found')
+                return
+
+            # Get newsletter and subscribers
+            newsletter = edition.newsletter
+            subscribers = [ns.subscriber for ns in newsletter.subscribers
+                         if ns.subscriber.status == 'active']
+
+            print(f'Sending to {len(subscribers)} subscribers...')
+
+            # Configure SMTP
+            smtp_config = SMTPConfig(
+                host='${{ secrets.SMTP_HOST }}',
+                port=int('${{ secrets.SMTP_PORT }}'),
+                username='${{ secrets.SMTP_USER }}',
+                password='${{ secrets.SMTP_PASSWORD }}',
+                use_tls=True,
+                from_email='${{ secrets.SMTP_FROM }}',
+                from_name=newsletter.name
+            )
+
+            # Send emails
+            sender = BatchEmailSender(smtp_config, max_concurrent=5, rate_limit=10)
+            results = await sender.send_edition(edition, subscribers)
+
+            # Update edition status
+            success_count = sum(1 for r in results if r['success'])
+            if success_count > 0:
+                edition.status = EditionStatus.SENT
+                edition.stats.sent_count = len(subscribers)
+                edition.stats.delivered_count = success_count
+                db.commit()
+                print(f'✅ Sent to {success_count}/{len(subscribers)} subscribers')
+            else:
+                edition.status = EditionStatus.FAILED
+                db.commit()
+                print('❌ Failed to send newsletter')
+
+        asyncio.run(send())
+        "
+
+  report-status:
+    name: Report Status
+    runs-on: ubuntu-latest
+    needs: [check-schedule, generate-newsletters, send-newsletters]
+    if: always()
+
+    steps:
+    - name: Generate status report
+      run: |
+        echo "# Newsletter Automation Report" > report.md
+        echo "" >> report.md
+        echo "**Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> report.md
+        echo "" >> report.md
+
+        if [ "${{ github.event.inputs.dry_run }}" == "true" ]; then
+          echo "**Mode:** Dry Run (Preview Only)" >> report.md
+        else
+          echo "**Mode:** Production" >> report.md
+        fi
+        echo "" >> report.md
+
+        echo "## Results" >> report.md
+        echo "" >> report.md
+        echo "| Step | Status |" >> report.md
+        echo "|------|--------|" >> report.md
+        echo "| Schedule Check | ${{ needs.check-schedule.result }} |" >> report.md
+        echo "| Content Generation | ${{ needs.generate-newsletters.result }} |" >> report.md
+        echo "| Email Delivery | ${{ needs.send-newsletters.result }} |" >> report.md
+        echo "" >> report.md
+
+    - name: Send notification (on failure)
+      if: failure()
+      run: |
+        # Send notification via webhook, email, or Slack
+        echo "⚠️ Newsletter automation failed. Check logs for details."
+
+    - name: Upload report
+      uses: actions/upload-artifact@v3
+      with:
+        name: automation-report
+        path: report.md

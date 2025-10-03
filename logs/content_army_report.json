@@ -1,0 +1,11 @@
+{
+  "timestamp": "2025-10-03T12:46:34.841778",
+  "duration": 0.029995,
+  "stats": {
+    "feeds_processed": 0,
+    "articles_fetched": 0,
+    "articles_summarized": 0,
+    "newsletters_generated": 0,
+    "emails_sent": 0
+  }
+}

@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ subject }}</title>
+    <style>
+        :root {
+            --executive-blue: #003366;
+            --accent-gold: #D4AF37;
+            --trust-gray: #4A5568;
+            --bg-premium: #F7FAFC;
+            --text-primary: #1A202C;
+            --text-secondary: #718096;
+            --border-subtle: #E2E8F0;
+            --success-green: #48BB78;
+            --alert-red: #F56565;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Georgia', 'Times New Roman', serif;
+            line-height: 1.8;
+            color: var(--text-primary);
+            background: #ffffff;
+        }
+
+        .container {
+            max-width: 720px;
+            margin: 0 auto;
+            background: white;
+        }
+
+        /* Executive Header */
+        .executive-header {
+            background: linear-gradient(135deg, var(--executive-blue) 0%, #004080 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+            border-bottom: 3px solid var(--accent-gold);
+        }
+
+        .executive-header h1 {
+            font-size: 32px;
+            font-weight: 300;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        .executive-header .edition {
+            font-size: 14px;
+            opacity: 0.9;
+            font-style: italic;
+        }
+
+        .executive-header .value-prop {
+            font-size: 16px;
+            margin-top: 10px;
+            color: var(--accent-gold);
+            font-weight: 500;
+        }
+
+        /* Executive Summary Bar */
+        .executive-summary {
+            background: var(--bg-premium);
+            padding: 25px 30px;
+            border-left: 4px solid var(--accent-gold);
+            margin: 20px;
+        }
+
+        .executive-summary h2 {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--executive-blue);
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .key-takeaway {
+            display: flex;
+            align-items: start;
+            margin: 12px 0;
+        }
+
+        .key-takeaway-icon {
+            width: 24px;
+            height: 24px;
+            background: var(--accent-gold);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            flex-shrink: 0;
+            font-weight: bold;
+            color: white;
+            font-size: 14px;
+        }
+
+        .key-takeaway-text {
+            font-size: 16px;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+
+        /* Content Sections */
+        .content {
+            padding: 30px;
+        }
+
+        .strategic-section {
+            margin-bottom: 45px;
+        }
+
+        .strategic-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--executive-blue);
+        }
+
+        .strategic-title {
+            font-size: 24px;
+            font-weight: 400;
+            color: var(--executive-blue);
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        .strategic-tag {
+            background: var(--executive-blue);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Insight Cards */
+        .insight-card {
+            background: white;
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transition: box-shadow 0.3s;
+        }
+
+        .insight-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .insight-headline {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+
+        .insight-meta {
+            display: flex;
+            gap: 20px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .insight-body {
+            font-size: 16px;
+            line-height: 1.8;
+            color: var(--text-primary);
+            margin-bottom: 20px;
+        }
+
+        /* Strategic Metrics */
+        .metrics-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+            padding: 20px;
+            background: var(--bg-premium);
+            border-radius: 8px;
+        }
+
+        .metric-box {
+            text-align: center;
+            padding: 15px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .metric-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--executive-blue);
+            margin-bottom: 5px;
+        }
+
+        .metric-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .metric-change {
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .metric-change.positive {
+            color: var(--success-green);
+        }
+
+        .metric-change.negative {
+            color: var(--alert-red);
+        }
+
+        /* Action Items */
+        .action-items {
+            background: linear-gradient(135deg, #FFF9E6 0%, #FFF5D6 100%);
+            border: 1px solid var(--accent-gold);
+            border-radius: 8px;
+            padding: 25px;
+            margin: 30px 0;
+        }
+
+        .action-items h3 {
+            color: var(--executive-blue);
+            font-size: 18px;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .action-item {
+            display: flex;
+            align-items: start;
+            margin: 12px 0;
+        }
+
+        .action-checkbox {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--executive-blue);
+            border-radius: 3px;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+
+        .action-text {
+            font-size: 15px;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+
+        .action-deadline {
+            color: var(--alert-red);
+            font-weight: 600;
+            margin-left: 8px;
+        }
+
+        /* CTA Buttons */
+        .cta-executive {
+            display: inline-block;
+            padding: 14px 28px;
+            background: var(--executive-blue);
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .cta-executive:hover {
+            background: #002244;
+            transform: translateY(-1px);
+        }
+
+        .cta-secondary {
+            background: white;
+            color: var(--executive-blue);
+            border: 2px solid var(--executive-blue);
+        }
+
+        .cta-secondary:hover {
+            background: var(--bg-premium);
+        }
+
+        /* Quote Block */
+        .executive-quote {
+            background: var(--bg-premium);
+            border-left: 4px solid var(--executive-blue);
+            padding: 25px 30px;
+            margin: 30px 0;
+            font-style: italic;
+        }
+
+        .executive-quote .quote-text {
+            font-size: 18px;
+            line-height: 1.8;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+        }
+
+        .executive-quote .quote-author {
+            font-size: 14px;
+            color: var(--text-secondary);
+            font-style: normal;
+            text-align: right;
+        }
+
+        /* Premium Footer */
+        .premium-footer {
+            background: var(--executive-blue);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        .subscription-info {
+            margin-bottom: 25px;
+            padding-bottom: 25px;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .subscription-tier {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.9;
+        }
+
+        .subscription-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--accent-gold);
+            margin: 10px 0;
+        }
+
+        .footer-links {
+            margin: 20px 0;
+            font-size: 14px;
+        }
+
+        .footer-links a {
+            color: white;
+            text-decoration: none;
+            margin: 0 15px;
+            opacity: 0.9;
+        }
+
+        .footer-links a:hover {
+            opacity: 1;
+            text-decoration: underline;
+        }
+
+        .confidential-notice {
+            font-size: 11px;
+            color: rgba(255,255,255,0.7);
+            margin-top: 25px;
+            padding-top: 25px;
+            border-top: 1px solid rgba(255,255,255,0.2);
+            font-style: italic;
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 600px) {
+            .executive-header h1 {
+                font-size: 24px;
+            }
+
+            .metrics-row {
+                grid-template-columns: 1fr;
+            }
+
+            .strategic-header {
+                flex-direction: column;
+                align-items: start;
+                gap: 10px;
+            }
+
+            .content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Executive Header -->
+        <div class="executive-header">
+            <h1>{{ newsletter.name }}</h1>
+            <div class="edition">{{ edition | default('Executive Edition') }} | {{ current_date | dateformat }}</div>
+            <div class="value-prop">{{ newsletter.value_proposition }}</div>
+        </div>
+
+        <!-- Executive Summary -->
+        <div class="executive-summary">
+            <h2>Executive Summary</h2>
+            {% for takeaway in executive_takeaways[:3] %}
+            <div class="key-takeaway">
+                <div class="key-takeaway-icon">{{ loop.index }}</div>
+                <div class="key-takeaway-text">{{ takeaway }}</div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Main Content -->
+        <div class="content">
+            <!-- Strategic Insights Section -->
+            <div class="strategic-section">
+                <div class="strategic-header">
+                    <h2 class="strategic-title">Strategic Insights</h2>
+                    <span class="strategic-tag">Action Required</span>
+                </div>
+
+                {% for insight in strategic_insights %}
+                <div class="insight-card">
+                    <div class="insight-headline">{{ insight.title }}</div>
+                    <div class="insight-meta">
+                        <span>{{ insight.impact | default('High Impact') }}</span>
+                        <span>{{ insight.timeframe | default('Q1 2025') }}</span>
+                        <span>{{ insight.source | default('Industry Analysis') }}</span>
+                    </div>
+                    <div class="insight-body">
+                        {{ insight.summary }}
+                    </div>
+
+                    {% if insight.metrics %}
+                    <div class="metrics-row">
+                        {% for metric in insight.metrics[:3] %}
+                        <div class="metric-box">
+                            <div class="metric-value">{{ metric.value }}</div>
+                            <div class="metric-label">{{ metric.label }}</div>
+                            {% if metric.change %}
+                            <div class="metric-change {{ 'positive' if metric.change > 0 else 'negative' }}">
+                                {{ metric.change }}% {{ 'increase' if metric.change > 0 else 'decrease' }}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    {% if insight.action_required %}
+                    <a href="{{ insight.url }}" class="cta-executive">Review Full Analysis →</a>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Market Intelligence Section -->
+            <div class="strategic-section">
+                <div class="strategic-header">
+                    <h2 class="strategic-title">Market Intelligence</h2>
+                    <span class="strategic-tag">Competitive Landscape</span>
+                </div>
+
+                {% for intel in market_intelligence %}
+                <div class="insight-card">
+                    <div class="insight-headline">{{ intel.headline }}</div>
+                    <div class="insight-body">{{ intel.analysis }}</div>
+
+                    {% if intel.competitive_impact %}
+                    <div class="executive-quote">
+                        <div class="quote-text">{{ intel.competitive_impact }}</div>
+                        <div class="quote-author">— Strategic Implications</div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Action Items -->
+            <div class="action-items">
+                <h3>Recommended Actions</h3>
+                {% for action in recommended_actions %}
+                <div class="action-item">
+                    <div class="action-checkbox"></div>
+                    <div class="action-text">
+                        {{ action.text }}
+                        {% if action.deadline %}
+                        <span class="action-deadline">(By {{ action.deadline }})</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Thought Leadership Quote -->
+            {% if thought_leader_quote %}
+            <div class="executive-quote">
+                <div class="quote-text">"{{ thought_leader_quote.text }}"</div>
+                <div class="quote-author">— {{ thought_leader_quote.author }}, {{ thought_leader_quote.title }}</div>
+            </div>
+            {% endif %}
+
+            <!-- Premium CTA -->
+            {% if premium_cta %}
+            <div style="text-align: center; margin: 40px 0; padding: 40px; background: var(--bg-premium); border-radius: 8px;">
+                <h2 style="color: var(--executive-blue); margin-bottom: 15px;">{{ premium_cta.headline }}</h2>
+                <p style="font-size: 16px; margin-bottom: 25px;">{{ premium_cta.subheading }}</p>
+                <a href="{{ premium_cta.url }}" class="cta-executive">{{ premium_cta.button_text }}</a>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Premium Footer -->
+        <div class="premium-footer">
+            <div class="subscription-info">
+                <div class="subscription-tier">{{ subscriber_tier | default('Executive Subscriber') }}</div>
+                <div class="subscription-value">{{ subscriber_value | default('Exclusive Access') }}</div>
+            </div>
+
+            <div class="footer-links">
+                <a href="{{ dashboard_url }}">Executive Dashboard</a>
+                <a href="{{ preferences_url }}">Preferences</a>
+                <a href="{{ refer_url }}">Refer a Colleague</a>
+                <a href="{{ unsubscribe_url }}">Unsubscribe</a>
+            </div>
+
+            <div class="confidential-notice">
+                This newsletter contains confidential and proprietary information intended solely for {{ subscriber_company | default('executive leadership') }}.
+                Distribution outside your organization is prohibited without express written consent.
+            </div>
+
+            {% if tracking_pixel %}
+            <img src="{{ tracking_pixel }}" alt="" width="1" height="1" style="display: block;">
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,28 @@
+# Include base requirements
+-r requirements.txt
+
+# Additional development tools
+ipython==8.19.0
+jupyter==1.0.0
+notebook==7.0.6
+
+# Debugging
+ipdb==0.13.13
+debugpy==1.8.0
+
+# Documentation
+mkdocs==1.5.3
+mkdocs-material==9.5.3
+mkdocstrings[python]==0.24.0
+
+# Performance profiling
+memory-profiler==0.61.0
+line-profiler==4.1.2
+py-spy==0.3.14
+
+# Load testing
+locust==2.20.1
+
+# Database tools
+sqlalchemy-utils==0.41.1
+alembic-autogenerate-enums==0.1.2

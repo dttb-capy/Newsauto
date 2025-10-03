@@ -1,0 +1,164 @@
+# Alert Rules Configuration
+# Controls alert routing, rate limiting, and channel selection
+
+channels:
+  slack:
+    enabled: false
+    webhook_url: null  # Set via SLACK_WEBHOOK_URL env var
+
+  discord:
+    enabled: false
+    webhook_url: null  # Set via DISCORD_WEBHOOK_URL env var
+
+  email:
+    enabled: false
+    to: []  # Add email addresses
+
+  pagerduty:
+    enabled: false
+    integration_key: null  # Set via PAGERDUTY_KEY env var
+
+  console:
+    enabled: true  # Always log to console
+
+# Alert rules with severity, channels, and rate limits
+rules:
+  # Quality Control Alerts
+  low_quality_content:
+    severity: warning
+    channels: [slack, email, console]
+    rate_limit: 3600  # Once per hour
+    description: "Content quality below threshold"
+
+  high_hallucination_risk:
+    severity: error
+    channels: [slack, console]
+    rate_limit: 1800  # Once per 30 minutes
+    description: "LLM hallucination detected"
+
+  # Infrastructure Alerts
+  smtp_blacklisted:
+    severity: critical
+    channels: [pagerduty, slack, email]
+    rate_limit: 300  # Once per 5 minutes
+    description: "SMTP server blacklisted"
+
+  smtp_connection_failed:
+    severity: error
+    channels: [slack, console]
+    rate_limit: 600  # Once per 10 minutes
+    description: "Cannot connect to SMTP server"
+
+  ollama_service_down:
+    severity: critical
+    channels: [pagerduty, slack]
+    rate_limit: 300
+    description: "Ollama service unavailable"
+
+  ollama_model_missing:
+    severity: error
+    channels: [slack, console]
+    rate_limit: 1800
+    description: "Required Ollama model not available"
+
+  database_connection_failed:
+    severity: critical
+    channels: [pagerduty, slack, email]
+    rate_limit: 60  # Once per minute
+    description: "Database connection failure"
+
+  database_corruption:
+    severity: critical
+    channels: [pagerduty, slack, email]
+    rate_limit: 60
+    description: "Database integrity check failed"
+
+  # Feed Health Alerts
+  feed_failure_rate_high:
+    severity: warning
+    channels: [slack, console]
+    rate_limit: 3600
+    description: "More than 20% of feeds failing"
+
+  critical_feed_down:
+    severity: error
+    channels: [slack, email]
+    rate_limit: 1800
+    description: "High-priority content source failing"
+
+  # Performance Alerts
+  high_error_rate:
+    severity: warning
+    channels: [slack, console]
+    rate_limit: 3600
+    description: "Error rate above 5%"
+
+  api_response_slow:
+    severity: warning
+    channels: [slack, console]
+    rate_limit: 1800
+    description: "API response time above 2 seconds"
+
+  memory_critical:
+    severity: error
+    channels: [slack, console]
+    rate_limit: 600
+    description: "Memory usage above 90%"
+
+  disk_space_critical:
+    severity: critical
+    channels: [pagerduty, slack]
+    rate_limit: 600
+    description: "Disk space above 90%"
+
+  # Delivery Alerts
+  newsletter_send_failed:
+    severity: error
+    channels: [slack, email]
+    rate_limit: 1800
+    description: "Newsletter delivery failed"
+
+  high_bounce_rate:
+    severity: warning
+    channels: [slack, email]
+    rate_limit: 3600
+    description: "Bounce rate above 5%"
+
+  low_engagement:
+    severity: info
+    channels: [slack, console]
+    rate_limit: 86400  # Once per day
+    description: "Open rate below 20%"
+
+  # Self-Healing Alerts
+  self_healing_triggered:
+    severity: info
+    channels: [slack, console]
+    rate_limit: 600
+    description: "Self-healing mechanism activated"
+
+  self_healing_failed:
+    severity: error
+    channels: [slack, email]
+    rate_limit: 600
+    description: "Self-healing attempt failed"
+
+  smtp_rotated:
+    severity: warning
+    channels: [slack, email]
+    rate_limit: 600
+    description: "SMTP relay auto-rotated"
+
+# Global rate limiting (seconds between ANY two alerts)
+global_rate_limit: 60
+
+# Alert escalation (not implemented yet)
+escalation:
+  enabled: false
+  levels:
+    - delay: 300  # 5 minutes
+      channels: [slack]
+    - delay: 900  # 15 minutes
+      channels: [email]
+    - delay: 1800  # 30 minutes
+      channels: [pagerduty]

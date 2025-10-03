@@ -1,0 +1,1 @@
+"""Newsauto test suite."""

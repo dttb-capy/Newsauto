@@ -1,0 +1,106 @@
+# Coverage.py configuration file
+
+[run]
+source = newsauto
+branch = True
+parallel = True
+concurrency = multiprocessing
+data_file = .coverage
+
+# Omit files from coverage
+omit =
+    */tests/*
+    */test_*.py
+    */__init__.py
+    */migrations/*
+    */versions/*
+    */conftest.py
+    */setup.py
+    */config.py
+    */cli.py
+    */main.py
+    */__main__.py
+
+[report]
+# Precision of coverage percentage
+precision = 2
+
+# Show missing lines
+show_missing = True
+
+# Skip files with 100% coverage in report
+skip_covered = False
+
+# Skip empty files
+skip_empty = True
+
+# Sort report by coverage percentage
+sort = Cover
+
+# Exclude lines from coverage
+exclude_lines =
+    # Standard pragma
+    pragma: no cover
+
+    # Debug-only code
+    def __repr__
+    def __str__
+
+    # Defensive programming
+    raise AssertionError
+    raise NotImplementedError
+
+    # Non-runnable code
+    if 0:
+    if False:
+    if __name__ == .__main__.:
+
+    # Type checking
+    if TYPE_CHECKING:
+    if typing.TYPE_CHECKING:
+    @typing.overload
+    @overload
+
+    # Abstract methods
+    @abstractmethod
+    @abc.abstractmethod
+
+    # Protocol classes
+    class .*\bProtocol\):
+
+    # Logging
+    logger\.
+    logging\.
+
+    # Pass statements
+    ^\s*pass\s*$
+
+    # Ellipsis
+    ^\s*\.\.\.\s*$
+
+# Ignore errors
+ignore_errors = False
+
+[html]
+directory = htmlcov
+title = Newsauto Coverage Report
+show_contexts = True
+
+[xml]
+output = coverage.xml
+
+[json]
+output = coverage.json
+pretty_print = True
+show_contexts = True
+
+[paths]
+# Combine coverage data from different locations
+source =
+    newsauto/
+    */newsauto/
+    */site-packages/newsauto/
+
+[context]
+# Context names for different test types
+dynamic_context = test_function

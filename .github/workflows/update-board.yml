@@ -1,0 +1,228 @@
+name: Update Project Board on Push
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+jobs:
+  update-board-from-commits:
+    name: Extract Tasks from Commits
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Parse commits for task references
+        id: parse
+        run: |
+          # Get commits since last push
+          if [ "${{ github.event_name }}" = "push" ]; then
+            commits=$(git log --format="%s" ${{ github.event.before }}..${{ github.event.after }})
+          else
+            commits=$(git log --format="%s" origin/${{ github.base_ref }}..HEAD)
+          fi
+
+          echo "$commits" | while read -r commit; do
+            # Extract issue references (#123)
+            if echo "$commit" | grep -oP '#\K\d+'; then
+              issue_num=$(echo "$commit" | grep -oP '#\K\d+' | head -1)
+              echo "Found reference to issue #$issue_num in: $commit"
+              echo "issue_$issue_num=true" >> $GITHUB_OUTPUT
+            fi
+          done
+
+      - name: Update linked issues status
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const commits = context.payload.commits || [];
+
+            for (const commit of commits) {
+              // Extract issue numbers from commit message
+              const matches = commit.message.match(/#(\d+)/g);
+              if (!matches) continue;
+
+              for (const match of matches) {
+                const issueNumber = parseInt(match.substring(1));
+
+                // Check if commit indicates completion
+                const isClosing = /^(fix|close|resolve)s?:/i.test(commit.message);
+
+                if (isClosing) {
+                  // Close the issue
+                  await github.rest.issues.update({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issueNumber,
+                    state: 'closed'
+                  });
+
+                  // Add completion comment
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issueNumber,
+                    body: `✅ Completed in commit ${commit.id.substring(0, 7)}\n\n${commit.message}`
+                  });
+                } else {
+                  // Add in-progress label
+                  await github.rest.issues.addLabels({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issueNumber,
+                    labels: ['in-progress']
+                  });
+                }
+              }
+            }
+
+  update-progress-metrics:
+    name: Calculate and Update Progress
+    runs-on: ubuntu-latest
+    needs: update-board-from-commits
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Calculate completion percentage
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // Get all issues
+            const { data: allIssues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all',
+              labels: 'automation,enhancement,feature',
+              per_page: 100
+            });
+
+            const total = allIssues.length;
+            const closed = allIssues.filter(i => i.state === 'closed').length;
+            const inProgress = allIssues.filter(i =>
+              i.labels.some(l => l.name === 'in-progress')
+            ).length;
+
+            const percentage = total > 0 ? Math.round((closed / total) * 100) : 0;
+
+            console.log(`Progress: ${closed}/${total} (${percentage}%)`);
+            console.log(`In Progress: ${inProgress}`);
+
+            // Update project README badge (optional)
+            const badge = `![Progress](https://img.shields.io/badge/Progress-${percentage}%25-blue)`;
+            core.setOutput('progress_badge', badge);
+            core.setOutput('completion_pct', percentage);
+
+      - name: Create progress report
+        run: |
+          cat > progress-report.md << 'EOF'
+          # 📊 Project Progress Report
+
+          **Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Branch**: ${{ github.ref_name }}
+          **Commit**: ${{ github.sha }}
+
+          ## Overall Progress
+          ${{ steps.calculate.outputs.progress_badge }}
+
+          ## Recent Activity
+          - Latest commits: ${{ github.event.commits | length }}
+          - Modified files: ${{ github.event.head_commit.modified | length }}
+
+          ## Phase Status
+          Check the [GitHub Projects board](${{ secrets.PROJECT_URL }}) for detailed task breakdown.
+          EOF
+
+          cat progress-report.md
+
+  sync-milestones-to-phases:
+    name: Sync Milestones with PROJECT_SPEC Phases
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check and update milestone progress
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { data: milestones } = await github.rest.issues.listMilestones({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open'
+            });
+
+            for (const milestone of milestones) {
+              const { data: issues } = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                milestone: milestone.number,
+                state: 'all'
+              });
+
+              const total = issues.length;
+              const closed = issues.filter(i => i.state === 'closed').length;
+              const progress = total > 0 ? Math.round((closed / total) * 100) : 0;
+
+              console.log(`${milestone.title}: ${closed}/${total} (${progress}%)`);
+
+              // Auto-close milestone if 100% complete
+              if (progress === 100 && total > 0) {
+                await github.rest.issues.updateMilestone({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  milestone_number: milestone.number,
+                  state: 'closed'
+                });
+                console.log(`✅ Closed milestone: ${milestone.title}`);
+              }
+            }
+
+  notify-on-phase-complete:
+    name: Notify on Phase Completion
+    runs-on: ubuntu-latest
+    needs: sync-milestones-to-phases
+    if: success()
+
+    steps:
+      - name: Check for completed milestones
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { data: milestones } = await github.rest.issues.listMilestones({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed'
+            });
+
+            // Check if any milestones were closed in last hour
+            const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+            const recentlyClosed = milestones.filter(m =>
+              new Date(m.closed_at) > oneHourAgo
+            );
+
+            if (recentlyClosed.length > 0) {
+              for (const milestone of recentlyClosed) {
+                console.log(`🎉 Milestone completed: ${milestone.title}`);
+
+                // Create a celebratory issue
+                await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: `🎉 ${milestone.title} Complete!`,
+                  body: `The milestone **${milestone.title}** has been completed!\n\n` +
+                        `${milestone.description}\n\n` +
+                        `Great work team! 🚀`,
+                  labels: ['celebration', 'milestone']
+                });
+              }
+            }

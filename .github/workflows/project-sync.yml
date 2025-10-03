@@ -1,0 +1,177 @@
+name: Sync to GitHub Projects
+
+on:
+  issues:
+    types: [opened, reopened, closed, labeled]
+  pull_request:
+    types: [opened, reopened, closed, ready_for_review, converted_to_draft]
+  workflow_dispatch:
+
+jobs:
+  sync-to-project:
+    name: Sync Issues and PRs to Project Board
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Add to project
+        uses: actions/add-to-project@v0.5.0
+        with:
+          # Replace with your project URL
+          # Example: https://github.com/users/YOUR_USERNAME/projects/1
+          project-url: ${{ secrets.PROJECT_URL }}
+          github-token: ${{ secrets.GH_PROJECT_TOKEN }}
+          labeled: automation, enhancement, bug, feature
+
+      - name: Set status based on type
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GH_PROJECT_TOKEN }}
+          script: |
+            const issue = context.payload.issue || context.payload.pull_request;
+            if (!issue) return;
+
+            let status = 'Backlog';
+
+            // Determine status based on labels and state
+            if (issue.state === 'closed') {
+              status = 'Done';
+            } else if (issue.draft === false && issue.pull_request) {
+              status = 'Review';
+            } else if (issue.assignees && issue.assignees.length > 0) {
+              status = 'In Progress';
+            } else if (issue.labels.some(l => l.name === 'in-progress')) {
+              status = 'In Progress';
+            }
+
+            console.log(`Setting status to: ${status}`);
+
+            // Note: Actual project field update requires GraphQL API
+            // This is a placeholder for the status update logic
+            // You'll need to implement the GraphQL mutation for your specific project
+
+  auto-label-from-commits:
+    name: Auto-label from Conventional Commits
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract commit types
+        id: commits
+        run: |
+          # Get all commits in the PR
+          commits=$(git log --oneline origin/main..HEAD)
+
+          # Check for conventional commit types
+          if echo "$commits" | grep -q "^[a-f0-9]* feat:"; then
+            echo "has_feat=true" >> $GITHUB_OUTPUT
+          fi
+          if echo "$commits" | grep -q "^[a-f0-9]* fix:"; then
+            echo "has_fix=true" >> $GITHUB_OUTPUT
+          fi
+          if echo "$commits" | grep -q "^[a-f0-9]* docs:"; then
+            echo "has_docs=true" >> $GITHUB_OUTPUT
+          fi
+          if echo "$commits" | grep -q "^[a-f0-9]* refactor:"; then
+            echo "has_refactor=true" >> $GITHUB_OUTPUT
+          fi
+          if echo "$commits" | grep -q "^[a-f0-9]* test:"; then
+            echo "has_test=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Add labels
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const labels = [];
+
+            if ('${{ steps.commits.outputs.has_feat }}' === 'true') {
+              labels.push('feature');
+            }
+            if ('${{ steps.commits.outputs.has_fix }}' === 'true') {
+              labels.push('bug');
+            }
+            if ('${{ steps.commits.outputs.has_docs }}' === 'true') {
+              labels.push('documentation');
+            }
+            if ('${{ steps.commits.outputs.has_refactor }}' === 'true') {
+              labels.push('refactor');
+            }
+            if ('${{ steps.commits.outputs.has_test }}' === 'true') {
+              labels.push('testing');
+            }
+
+            if (labels.length > 0) {
+              github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels: labels
+              });
+            }
+
+  create-milestone-from-phase:
+    name: Create Milestones from PROJECT_SPEC Phases
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse PROJECT_SPEC and create milestones
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const spec = fs.readFileSync('PROJECT_SPEC.md', 'utf8');
+
+            // Extract phases from PROJECT_SPEC.md
+            const phases = [
+              {
+                title: 'Phase 1: Foundation',
+                description: 'Project setup, database schema, basic CRUD, Ollama integration',
+                due_on: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 1 week
+              },
+              {
+                title: 'Phase 2: Content Pipeline',
+                description: 'RSS parser, Reddit/HN integration, deduplication, LLM summarization',
+                due_on: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString() // 2 weeks
+              },
+              {
+                title: 'Phase 3: Newsletter System',
+                description: 'Newsletter generation, template engine, email sending, subscriber management',
+                due_on: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000).toISOString() // 3 weeks
+              },
+              {
+                title: 'Phase 4: Automation',
+                description: 'Scheduling system, GitHub Actions setup, error handling, monitoring',
+                due_on: new Date(Date.now() + 28 * 24 * 60 * 60 * 1000).toISOString() // 4 weeks
+              }
+            ];
+
+            // Check existing milestones
+            const { data: existingMilestones } = await github.rest.issues.listMilestones({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all'
+            });
+
+            // Create milestones that don't exist
+            for (const phase of phases) {
+              const exists = existingMilestones.find(m => m.title === phase.title);
+              if (!exists) {
+                await github.rest.issues.createMilestone({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: phase.title,
+                  description: phase.description,
+                  due_on: phase.due_on
+                });
+                console.log(`Created milestone: ${phase.title}`);
+              }
+            }

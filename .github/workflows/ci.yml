@@ -1,0 +1,293 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: '3.12'
+  NODE_VERSION: '18'
+
+jobs:
+  lint:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install ruff black mypy isort
+        pip install -r requirements.txt
+
+    - name: Run Black formatter check
+      run: black --check newsauto/ tests/
+
+    - name: Run isort import checker
+      run: isort --check-only newsauto/ tests/
+
+    - name: Run Ruff linter
+      run: ruff check newsauto/ tests/
+
+    - name: Run MyPy type checker
+      run: mypy newsauto/ --ignore-missing-imports
+      continue-on-error: true  # MyPy warnings shouldn't fail the build initially
+
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    needs: lint
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov pytest-asyncio pytest-mock
+
+    - name: Setup test database
+      env:
+        DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb
+      run: |
+        alembic upgrade head
+
+    - name: Run unit tests
+      env:
+        DATABASE_URL: sqlite:///./test.db
+        TESTING: true
+        OLLAMA_HOST: http://mock-ollama:11434
+      run: |
+        pytest tests/ -v --cov=newsauto --cov-report=xml --cov-report=html --cov-report=term
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      if: always()
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+    - name: Upload coverage HTML report
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: coverage-report
+        path: htmlcov/
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install safety bandit pip-audit
+
+    - name: Run Safety check
+      run: safety check --json
+      continue-on-error: true
+
+    - name: Run Bandit security linter
+      run: bandit -r newsauto/ -f json -o bandit-report.json
+      continue-on-error: true
+
+    - name: Run pip-audit
+      run: pip-audit
+      continue-on-error: true
+
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: false
+        tags: newsauto:${{ github.sha }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: newsauto:${{ github.sha }}
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+      continue-on-error: true
+
+    - name: Upload Trivy results
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+      continue-on-error: true
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      mailhog:
+        image: mailhog/mailhog:latest
+        ports:
+          - 1025:1025
+          - 8025:8025
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-asyncio
+
+    - name: Run integration tests
+      env:
+        DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb
+        SMTP_HOST: localhost
+        SMTP_PORT: 1025
+        TESTING: true
+      run: |
+        alembic upgrade head
+        pytest tests/test_newsletter_integration.py -v
+      continue-on-error: true  # Don't fail build on integration tests initially
+
+  performance:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-benchmark locust
+
+    - name: Run performance benchmarks
+      run: |
+        pytest tests/ -v --benchmark-only --benchmark-autosave
+      continue-on-error: true
+
+    - name: Upload benchmark results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: benchmark-results
+        path: .benchmarks/
+
+  quality-gate:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    needs: [lint, test, security, docker]
+    if: always()
+
+    steps:
+    - name: Check quality gate
+      run: |
+        echo "✅ Quality gate passed!"
+        echo "Lint status: ${{ needs.lint.result }}"
+        echo "Test status: ${{ needs.test.result }}"
+        echo "Security status: ${{ needs.security.result }}"
+        echo "Docker status: ${{ needs.docker.result }}"
+
+        if [[ "${{ needs.lint.result }}" == "failure" ]] || \
+           [[ "${{ needs.test.result }}" == "failure" ]] || \
+           [[ "${{ needs.docker.result }}" == "failure" ]]; then
+          echo "❌ Quality gate failed!"
+          exit 1
+        fi

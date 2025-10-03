@@ -1,0 +1,23 @@
+{{ newsletter.name }}
+{{ '=' * newsletter.name|length }}
+
+{{ newsletter.description }}
+
+{% for section in sections %}
+{{ section.title }}
+{{ '-' * section.title|length }}
+
+{% for article in section.articles %}
+* {{ article.title }}
+  {% if article.author %}By {{ article.author }} | {% endif %}{{ article.published_at|dateformat }}
+  {{ article.url }}
+
+  {{ article.summary|truncate_summary(200) }}
+
+{% endfor %}
+{% endfor %}
+
+---
+© {{ current_year }} {{ app_name }}. All rights reserved.
+Unsubscribe: {{ unsubscribe_url }}
+Update Preferences: {{ preferences_url }}

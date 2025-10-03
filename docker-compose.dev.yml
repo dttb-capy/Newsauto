@@ -1,0 +1,40 @@
+version: '3.8'
+
+# Development overrides for docker-compose
+services:
+  newsauto:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder  # Use builder stage for development
+    environment:
+      - DEBUG=true
+      - API_RELOAD=true
+      - LOG_LEVEL=DEBUG
+      - SMTP_HOST=mailhog
+      - SMTP_PORT=1025
+      - SMTP_USERNAME=
+      - SMTP_PASSWORD=
+    volumes:
+      - .:/app  # Mount entire directory for hot reload
+      - /app/__pycache__
+      - /app/.pytest_cache
+    command: uvicorn newsauto.api.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Use SQLite for development (faster startup)
+  postgres:
+    profiles:
+      - postgres  # Only start if explicitly requested
+
+  # Local Ollama without GPU for development
+  ollama:
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          devices: []  # No GPU in dev
+
+  # Always include mailhog in development
+  mailhog:
+    profiles: []  # Remove profile to always start

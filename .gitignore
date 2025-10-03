@@ -1,0 +1,109 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+data/newsletter.db
+backups/*.db
+
+# Environment variables
+.env
+.env.local
+*.env
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+logs/*.log
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Ollama models cache (large files)
+.ollama/
+*.gguf
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Metrics/monitoring
+metrics/*.jsonl
+
+# Test coverage
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Alembic
+alembic.ini.bak
+
+# Docker
+docker-compose.override.yml
+
+# MacOS
+.AppleDouble
+.LSOverride
+
+# Large model files (if accidentally committed)
+*.bin
+*.safetensors
+*.pt
+*.pth
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# CI/CD artifacts
+.github/workflows/*.log

@@ -1,0 +1,157 @@
+version: '3.8'
+
+services:
+  # Ollama service for LLM inference
+  ollama:
+    image: ollama/ollama:latest
+    container_name: newsauto-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    networks:
+      - newsauto-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # PostgreSQL database
+  postgres:
+    image: postgres:15-alpine
+    container_name: newsauto-postgres
+    environment:
+      POSTGRES_DB: newsauto
+      POSTGRES_USER: newsauto
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-newsauto_secret}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - newsauto-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U newsauto"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    container_name: newsauto-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - newsauto-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Main application
+  newsauto:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: newsauto-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://newsauto:${DB_PASSWORD:-newsauto_secret}@postgres:5432/newsauto
+      - REDIS_URL=redis://redis:6379/0
+      - OLLAMA_HOST=http://ollama:11434
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - DEBUG=${DEBUG:-false}
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./.env:/app/.env:ro
+    networks:
+      - newsauto-network
+    restart: unless-stopped
+    command: python main.py
+
+  # Scheduler service (runs automation tasks)
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: newsauto-scheduler
+    depends_on:
+      - newsauto
+    environment:
+      - DATABASE_URL=postgresql://newsauto:${DB_PASSWORD:-newsauto_secret}@postgres:5432/newsauto
+      - REDIS_URL=redis://redis:6379/0
+      - OLLAMA_HOST=http://ollama:11434
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./.env:/app/.env:ro
+    networks:
+      - newsauto-network
+    restart: unless-stopped
+    command: python -m newsauto.cli start-scheduler
+
+  # Nginx reverse proxy (optional)
+  nginx:
+    image: nginx:alpine
+    container_name: newsauto-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - newsauto
+    networks:
+      - newsauto-network
+    profiles:
+      - production
+
+  # Development mail server (for testing)
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: newsauto-mailhog
+    ports:
+      - "1025:1025"  # SMTP port
+      - "8025:8025"  # Web UI
+    networks:
+      - newsauto-network
+    profiles:
+      - development
+
+networks:
+  newsauto-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  ollama_data:
